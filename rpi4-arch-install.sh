@@ -546,16 +546,20 @@ showResultOrExit
 
 FIRM_DIR="${tmp_dir}/rpi_firmware"
 if [ -z "${data_folder}" ]; then
+	if [ -n "${target_folder}" ]; then
+		FIRM_DIR="${target_folder}/rpi_firmware";
+	fi
 	pad "Downloading latest Raspberry Pi firmware"
 	$SUDO git clone --depth 1 $RPI_FIRMWARE_GIT $FIRM_DIR &>/dev/null
 	showResultOrExit
 else
 	pad "Retrieving Raspberry Pi firmware"
 	FIRM_DIR="${data_folder}/rpi_firmware";
-	if [ ! -d "${data_folder}/rpi_firmware/boot" ]; then
+	if [ ! -d "${FIRM_DIR}/boot" ]; then
 		(exit 1)
 		showResultOrExit "Cannot find firmware boot files";
 	else
+		(exit 0)
 		showResultOrExit
 	fi
 fi

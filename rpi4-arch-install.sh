@@ -10,7 +10,7 @@
 ####################################################################################
 
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 
 # Globals
@@ -225,9 +225,12 @@ function show_help() {
 	debug "\nPayball's Rpi4 Automated Installer\n\n";
 	printf "Usage : $(basename $0) <OPTIONS>\n";
 	printf "where OPTIONS are :\n";
-	printf "\t-d <disk>   : use the given disk (e.g. /dev/sdb)\n";
-	printf "\t-v          : show version\n";
-	printf "\t-h          : show this help\n";
+	printf "\t-d|--disk <disk>   : use the given disk (e.g. /dev/sdb)\n";
+	printf "\t-k|--keep [<path>] : keep dowloaded files at this location\n";
+	printf "\t-f|--from [<path>] : use dowloaded files at this location\n";
+	printf "\t-h|--host [<host>] : set as hostname in target root file system\n";
+	printf "\t-v                 : show version\n";
+	printf "\t--help             : show this help\n";
 }
 
 ##############################################
@@ -256,36 +259,82 @@ function cleanup()  {
 }
 
 
-########## Main ###########
+#########s Main ###########
 
 # Step 1 : Get args
-if [ "$#" -lt 1 ]; then
-	fail "Wrong number of arguments supplied\n";
-	exit 1;
+disk="";
+PARAMS=""
+
+# Parse options
+while (( "$#" )); do
+	case "$1" in
+		--help)
+			show_help;
+			exit 0;
+			;;
+		-v|--version)
+			show_version;
+			exit 0;
+			;;
+		-h|--host)
+			host="$2";
+			if [ -z "$host" ]; then
+				fail "Hostname not specified";
+				exit 1;
+			fi
+			shift 2
+			;;
+		-d|--disk)
+			disk="$2"
+			if [ -z "$disk" ]; then
+				fail "Disk not specified";
+				exit 1;
+			fi
+			shift 2;
+			;;
+		-k|--keep)
+			target_folder="$2"
+			if [ -z "$target_folder" ]; then
+				fail "Download folder not specified";
+				exit 1;
+			fi
+			shift 2;
+			;;
+		-f|--from)
+			data_folder="$2"
+			if [ -z "$data_folder" ]; then
+				fail "Data folder not specified";
+				exit 1;
+			fi
+			shift 2;
+			;;
+		--) # end argument parsing
+			shift
+			break
+			;;
+		*) # preserve positional arguments
+			PARAMS="$PARAMS $1"
+			shift
+			;;
+	esac
+done
+
+# set positional arguments in their proper place
+eval set -- "$PARAMS"
+
+if [ -n "$data_folder" -a ! -e "$data_folder" ]; then
+	fail "Cannot access data folder \"$data_folder\"";
+	exit 1
 fi
 
-if [ "$#" -eq 1 ]; then
-	if [ "$1" == "-h" -o "$1" == "--help" ]; then
-		show_help;
-		exit 0;
+if [ -n "$data_folder" ]; then
+	if [ -n "$target_folder" ]; then
+		fail "Cannot use target & source folder at the same time";
+		exit 1;
 	fi
-	if [ "$1" == "-v" -o "$1" == "--version" ]; then
-		show_version;
-		exit 0;
-	fi
+	showSection "User options"
+	warn "Using data folder [$data_folder]\n";
 fi
-
-if [ "$#" -ne 2 ]; then
-	fail "Wrong number of arguments supplied\n";
-	exit 1;
-fi
-
-if [ "$1" != "-d" -a "$1" != "--disk" ]; then
-	fail "Unrecognized parameter \"$1\"\n";
-	exit 1;
-fi
-
-disk=$2;
 
 if [ ! -b "$disk" ]; then
 	fail "Cannot access disk \"$disk\"\n";
@@ -358,10 +407,21 @@ showSection "Root filesystem and kernel setup"
 
 showSubSection "Extracting kernel & file system"
 
-pad "Downloading root filesystem"
-rfs_pack=$(curl -s $ROOT_FS_BASE_URL 2>/dev/null| sed -e "s;<a href;\n<a href;g" | grep "<a href" | cut -d"\"" -f2 | grep tar.gz | tail -1 | xargs -I{} basename {});
-if [ $? -ne 0 ]; then
+rfs_pack="";
+if [ -z "$data_folder" ]; then
+	pad "Downloading root filesystem"
+	rfs_pack=$(curl -s $ROOT_FS_BASE_URL 2>/dev/null| sed -e "s;<a href;\n<a href;g" | grep "<a href" | cut -d"\"" -f2 | grep tar.gz | tail -1 | xargs -I{} basename {});
+	if [ $? -ne 0 ]; then
+		showResultOrExit
+	fi
+else
+	pad "Retrieving root filesystem"
+	ROOT_FS_BASE_URL=$data_folder;
+	if [ -d "${data_folder}/root_fs" ]; then
+		rfs_pack=$(find ${data_folder}/root_fs -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
+	fi
 	showResultOrExit
+	ROOT_FS="${rfs_pack}";
 fi
 
 if [ -z "$rfs_pack" ]; then
@@ -369,19 +429,26 @@ if [ -z "$rfs_pack" ]; then
 	showResultOrExit "Cannot obtain latest root filesystem from $ROOT_FS_BASE_URL"
 fi
 
-ROOT_FS="$tmp_dir/rootfs/$rfs_pack";
-printf "\n"
-warn "$(basename $ROOT_FS)\n"
-printf "$HIDE_CURSOR"
-$SUDO mkdir $tmp_dir/rootfs && (cd $tmp_dir/rootfs; $SUDO curl --progress-bar --remote-name --location $ROOT_FS_BASE_URL/$rfs_pack)
-printf "${MOVE_CURSOR_UP}${MOVE_CURSOR_UP}${CLEAR_TO_END}${MOVE_CURSOR_UP}${SHOW_CURSOR}"
 
-move_to_max_width;
+if [ -z "$data_folder" ]; then
+	DOWNLOAD_FOLDER="${tmp_dir}/root_fs"
+	if [ -n "$target_folder" ]; then
+		DOWNLOAD_FOLDER="$target_folder/root_fs";
+	fi
+	ROOT_FS="${DOWNLOAD_FOLDER}/$rfs_pack";
+	printf "\n"
+	warn "$(basename $ROOT_FS)\n"
+	printf "$HIDE_CURSOR"
+	$SUDO mkdir -p $DOWNLOAD_FOLDER && (cd $DOWNLOAD_FOLDER; $SUDO curl --progress-bar --remote-name --location $ROOT_FS_BASE_URL/$rfs_pack)
+	printf "${MOVE_CURSOR_UP}${MOVE_CURSOR_UP}${CLEAR_TO_END}${MOVE_CURSOR_UP}${SHOW_CURSOR}"
 
-LAST_RC=$?
+	move_to_max_width;
 
-(exit $LAST_RC)
-showResultOrExit
+	LAST_RC=$?
+
+	(exit $LAST_RC)
+	showResultOrExit
+fi
 
 pad "Extracting root file system"
 if [ ! -e "$ROOT_FS" ]; then
@@ -391,39 +458,58 @@ fi
 $SUDO bsdtar -xpf $ROOT_FS -C ${tmp_dir}/root &>/dev/null
 showResultOrExit 
 
-pad "Downloading Raspberry Pi 64bit kernel"
-kernel_url=$(curl -L -s $KERNEL_BASE_URL 2>/dev/null|  grep "browser_download" | cut -d"\"" -f4);
-if [ $? -ne 0 ]; then
+if [ -z "$data_folder" ]; then
+	pad "Downloading Raspberry Pi 64bit kernel"
+	kernel_url=$(curl -L -s $KERNEL_BASE_URL 2>/dev/null|  grep "browser_download" | cut -d"\"" -f4);
+	if [ $? -ne 0 ]; then
+		showResultOrExit
+	fi
+
+	if [ -z "$kernel_url" ]; then
+		(exit 1);
+		showResultOrExit "Cannot obtain latest kernel from $KERNEL_BASE_URL"
+	fi
+
+	KERNEL_DIR="$tmp_dir/kernel/";
+	if [ -n "${target_folder}" ]; then
+		KERNEL_DIR="${target_folder}/kernel";
+	fi
+	KERNEL_FILE="$(basename $kernel_url)";
+	KERNEL="${KERNEL_DIR}/${KERNEL_FILE}";
+	printf "\n"
+	warn "$KERNEL_FILE\n"
+	printf "$HIDE_CURSOR"
+	$SUDO mkdir $KERNEL_DIR && (cd $KERNEL_DIR; $SUDO curl -L --progress-bar --remote-name --location $kernel_url)
+	printf "${MOVE_CURSOR_UP}${MOVE_CURSOR_UP}${CLEAR_TO_END}${MOVE_CURSOR_UP}${MOVE_CURSOR_UP}${SHOW_CURSOR}"
+
+	move_to_max_width;
+
+	LAST_RC=$?
+
+	(exit $LAST_RC)
+	showResultOrExit
+else
+	pad "Retrieving kernel"
+	kernel_pack="";
+	if [ -d "${data_folder}/kernel" ]; then
+		kernel_pack=$(find ${data_folder}/kernel -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
+	fi
+	KERNEL="${kernel_pack}"
+
+	if [ ! -e "$KERNEL" ]; then
+		(exit 1);
+		showResultOrExit "Cannot obtain latest kernel from \"${data_folder}/kernel\"";
+
+	fi
 	showResultOrExit
 fi
-
-if [ -z "$kernel_url" ]; then
-	(exit 1);
-	showResultOrExit "Cannot obtain latest kernel from $KERNEL_BASE_URL"
-fi
-
-KERNEL_DIR="$tmp_dir/kernel/";
-KERNEL_FILE="$(basename $kernel_url)";
-KERNEL="${KERNEL_DIR}/${KERNEL_FILE}";
-printf "\n"
-warn "$KERNEL_FILE\n"
-printf "$HIDE_CURSOR"
-$SUDO mkdir $KERNEL_DIR && (cd $KERNEL_DIR; $SUDO curl -L --progress-bar --remote-name --location $kernel_url)
-printf "${MOVE_CURSOR_UP}${MOVE_CURSOR_UP}${CLEAR_TO_END}${MOVE_CURSOR_UP}${MOVE_CURSOR_UP}${SHOW_CURSOR}"
-
-move_to_max_width;
-
-LAST_RC=$?
-
-(exit $LAST_RC)
-showResultOrExit
 
 pad "Extracting kernel"
 if [ ! -e "$KERNEL" ]; then
 	(exit 1);
 	showResultOrExit "Kernel tarball not found"
 fi
-$SUDO mkdir ${KERNEL_DIR}/kernel_d && $SUDO bsdtar -xpf $KERNEL -C ${KERNEL_DIR}/kernel_d &>/dev/null
+$SUDO mkdir ${tmp_dir}/kernel_d && $SUDO bsdtar -xpf $KERNEL -C ${tmp_dir}/kernel_d &>/dev/null
 showResultOrExit 
 
 pad "Removing old kernel"
@@ -441,7 +527,7 @@ $SUDO sed -i -e "s;^kernel=${old_kernel}$;kernel=${new_kernel};g" $tmp_dir/root/
 showResultOrExit
 
 pad "Merging kernel files"
-$SUDO rsync -avzKP ${KERNEL_DIR}/kernel_d/* ${tmp_dir}/root &>/dev/null
+$SUDO rsync -avzKP ${tmp_dir}/kernel_d/* ${tmp_dir}/root &>/dev/null
 showResultOrExit
 
 pad "Moving boot files to boot partition"
@@ -458,13 +544,31 @@ pad "Updating /boot/cmdline.txt"
 $SUDO perl -pi -e 's;^root=.+?[\s];root=LABEL=ROOT ;g' $tmp_dir/boot/cmdline.txt &>/dev/null
 showResultOrExit
 
-pad "Downloading latest Raspberry Pi firmware"
-$SUDO git clone --depth 1 $RPI_FIRMWARE_GIT $tmp_dir/rpi_firmware &>/dev/null
+FIRM_DIR="${tmp_dir}/rpi_firmware"
+if [ -z "${data_folder}" ]; then
+	pad "Downloading latest Raspberry Pi firmware"
+	$SUDO git clone --depth 1 $RPI_FIRMWARE_GIT $FIRM_DIR &>/dev/null
+	showResultOrExit
+else
+	pad "Retrieving Raspberry Pi firmware"
+	FIRM_DIR="${data_folder}/rpi_firmware";
+	if [ ! -d "${data_folder}/rpi_firmware/boot" ]; then
+		(exit 1)
+		showResultOrExit "Cannot find firmware boot files";
+	else
+		showResultOrExit
+	fi
+fi
+
+pad "Copying firmware files"
+$SUDO cp $FIRM_DIR/boot/{*.elf,*.dat} $tmp_dir/boot/ &>/dev/null
 showResultOrExit
 
-pad "Copy firmware files"
-$SUDO cp $tmp_dir/rpi_firmware/boot/{*.elf,*.dat} $tmp_dir/boot/ &>/dev/null
-showResultOrExit
+if [ -n "$host" ]; then
+	pad "Setting hostname \"$host\""
+	echo "$host" | $SUDO tee $tmp_dir/root/etc/hostname &>/dev/null
+	showResultOrExit
+fi
 
 showSubSection "Performing cleanup"
 

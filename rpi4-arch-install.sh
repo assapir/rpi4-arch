@@ -342,7 +342,7 @@ showSection "Disk preparation (\"$disk\")";
 showSubSection "Creating partitions";
 
 pad "Creating boot partition"
-echo ",204800,c" | $SUDO sfdisk ${disk} &>/dev/null
+echo ",200M,c" | $SUDO sfdisk ${disk} &>/dev/null
 showResultOrExit;
 pad "Creating root partition"
 echo ",,83" | $SUDO sfdisk --append ${disk} &>/dev/null
@@ -368,7 +368,7 @@ $SUDO wget $IMAGE_URL -P $tmp_dir/
 showResultOrExit
 
 pad "Extracting image"
-bsdtar -xpf ArchLinuxARM-rpi-4-latest.tar.gz -C $tmp_dir/root
+bsdtar -xpf $tmp_dir/ArchLinuxARM-rpi-4-latest.tar.gz -C $tmp_dir/root
 showResultOrExit
 
 pad "Moving boot files to boot partition"

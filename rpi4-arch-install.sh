@@ -8,7 +8,6 @@
 # Prepare an HD with ArchLinux ARM
 #
 ####################################################################################
-
 VERSION="0.3.0"
 
 
@@ -18,7 +17,7 @@ IMAGE_URL="http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-aarch64-latest.tar.gz"
 
 SUDO="sudo"
 
-DEFAULT_PER_W=80
+DEFAULT_PER_W=40
 RES_OK="\xE2\x9C\x94"   #"\u2714";
 RES_FAIL="\xE2\x9C\x96" #"\u2716";
 RES_WARN="\xE2\x9A\xA0" #"\u2716";
@@ -299,6 +298,11 @@ done
 # set positional arguments in their proper place
 eval set -- "$PARAMS"
 
+if [ -z "$disk" ]; then
+	fail "Must specify where to write the file with -d|--disk";
+	exit 1;
+fi
+
 if [ ! -b "$disk" ]; then
 	fail "Cannot access disk \"$disk\"\n";
 	exit 1;
@@ -337,10 +341,6 @@ showSection "Disk preparation (\"$disk\")";
 
 showSubSection "Creating partitions";
 
-pad "Wiping disk";
-$SUDO sfdisk --delete $disk -w always &>/dev/null
-showResultOrExit;
-
 pad "Creating boot partition"
 echo ",204800,c" | $SUDO sfdisk ${disk} &>/dev/null
 showResultOrExit;
@@ -349,9 +349,6 @@ echo ",,83" | $SUDO sfdisk --append ${disk} &>/dev/null
 showResultOrExit;
 
 showSubSection "Formatting partitions"
-pad "Wiping partition signatures"
-$SUDO wipefs --all ${disk}1 &>/dev/null && $SUDO wipefs --all ${disk}2 &>/dev/null
-showResultOrExit;
 pad "Creating filesystems"
 $SUDO mkfs.vfat -F 32 -n BOOT ${disk}1 &>/dev/null && $SUDO mkfs.ext4 ${disk}2 -L ROOT &>/dev/null
 showResultOrExit;
@@ -366,16 +363,15 @@ pad "Mounting \"$disk\" partitions"
 $SUDO mount ${disk}1 $tmp_dir/boot &>/dev/null && $SUDO mount ${disk}2 $tmp_dir/root &>/dev/null
 showResultOrExit
 
-showSection "Creating the disk"
-showSubSection "Downloading image"
-$SUDO wget -O $tmp_dir
+showSubSection "Image processing"
+$SUDO wget $IMAGE_URL -P $tmp_dir/
 showResultOrExit
 
-showSubSection "Extracting image"
+pad "Extracting image"
 bsdtar -xpf ArchLinuxARM-rpi-4-latest.tar.gz -C $tmp_dir/root
 showResultOrExit
 
-showSubSection "Moving boot files to boot partition"
+pad "Moving boot files to boot partition"
 $SUDO mv $tmp_dir/root/boot/* $tmp_dir/boot/ &>/dev/null
 showResultOrExit
 

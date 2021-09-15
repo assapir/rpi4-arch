@@ -19,7 +19,7 @@ SCRIPT_DIR=$(dirname $(readlink -f $0));
 
 ROOT_FS_BASE_URL="https://olegtown.pw/Public/ArchLinuxArm/RPi4/rootfs/"
 KERNEL_BASE_URL="https://api.github.com/repos/sakaki-/bcm2711-kernel-bis/releases/latest"
-RPI_FIRMWARE_GIT="https://github.com/raspberrypi/firmware.git" 
+RPI_FIRMWARE_GIT="https://github.com/raspberrypi/firmware.git"
 
 SUDO="sudo"
 
@@ -242,7 +242,7 @@ function show_version() {
 }
 
 ##############################################
-# Performs cleanup actions 
+# Performs cleanup actions
 # - umount partitions
 # - remove tmp directory
 ##############################################
@@ -379,10 +379,10 @@ $SUDO sfdisk --delete $disk -w always &>/dev/null
 showResultOrExit;
 
 pad "Creating boot partition"
-echo ",204800,c" | $SUDO sfdisk /dev/sdb &>/dev/null
+echo ",204800,c" | $SUDO sfdisk ${disk} &>/dev/null
 showResultOrExit;
 pad "Creating root partition"
-echo ",,83" | $SUDO sfdisk --append /dev/sdb &>/dev/null
+echo ",,83" | $SUDO sfdisk --append ${disk} &>/dev/null
 showResultOrExit;
 
 showSubSection "Formatting partitions"
@@ -456,7 +456,7 @@ if [ ! -e "$ROOT_FS" ]; then
 	showResultOrExit "Root filesystem tarball not found"
 fi
 $SUDO bsdtar -xpf $ROOT_FS -C ${tmp_dir}/root &>/dev/null
-showResultOrExit 
+showResultOrExit
 
 if [ -z "$data_folder" ]; then
 	pad "Downloading Raspberry Pi 64bit kernel"
@@ -510,7 +510,7 @@ if [ ! -e "$KERNEL" ]; then
 	showResultOrExit "Kernel tarball not found"
 fi
 $SUDO mkdir ${tmp_dir}/kernel_d && $SUDO bsdtar -xpf $KERNEL -C ${tmp_dir}/kernel_d &>/dev/null
-showResultOrExit 
+showResultOrExit
 
 pad "Removing old kernel"
 if [ ! -e "$tmp_dir/root/boot/config.txt" ]; then

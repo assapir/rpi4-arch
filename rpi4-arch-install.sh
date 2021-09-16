@@ -400,7 +400,7 @@ mkdir -p $tmp_dir/root/home/alarm/.ssh &> /dev/null
 showResultOrExit
 
 pad "Copying ssh public key"
-$SUDO cp $HOME/.ssh/id_rsa.pub $tmp_dir/root/home/alarm/.ssh/id_rsa.pub &> /dev/null
+$SUDO tee -a $tmp_dir/root/home/alarm/.ssh/authorized_keys < $HOME/.ssh/id_rsa.pub /dev/null
 showResultOrExit
 
 if [ -n "$host" ]; then

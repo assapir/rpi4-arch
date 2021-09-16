@@ -13,14 +13,16 @@ VERSION="0.3.0"
 
 # Globals
 ##########
-IMAGE_URL="http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-aarch64-latest.tar.gz"
+FILE_NAME="ArchLinuxARM-rpi-aarch64-latest.tar.gz"
+IMAGE_URL="http://os.archlinuxarm.org/os/$FILE_NAME"
 
 SUDO="sudo"
 
-DEFAULT_PER_W=40
-RES_OK="\xE2\x9C\x94"   #"\u2714";
-RES_FAIL="\xE2\x9C\x96" #"\u2716";
-RES_WARN="\xE2\x9A\xA0" #"\u2716";
+DEFAULT_PER_W=50
+RES_OK="\xE2\x9C\x94"   		#"\u2714";
+RES_FAIL="\xE2\x9C\x96" 		#"\u2716";
+RES_WARN="\xE2\x9A\xA0" 		#"\u2716";
+SAD_FACE="\xE2\x98\xB9" #"\u2639";
 
 RED="$(tput setaf 1)"
 GREEN="$(tput setaf 2)"
@@ -341,6 +343,10 @@ showSection "Disk preparation (\"$disk\")";
 
 showSubSection "Creating partitions";
 
+pad "Wiping disk";
+$SUDO sfdisk --delete $disk -w always &>/dev/null
+showResultOrExit;
+
 pad "Creating boot partition"
 echo ",200M,c" | $SUDO sfdisk ${disk} &>/dev/null
 showResultOrExit;
@@ -355,7 +361,7 @@ showResultOrExit;
 
 showSubSection "Mounting partitions"
 tmp_dir=$(mktemp -d -t rpi4_mnt-XXXXXXXXXX)
-pad "Creating mount points"
+pad "Creating mount points at ${tmp_dir}"
 mkdir -p $tmp_dir/{boot,root}
 showResultOrExit
 
@@ -363,23 +369,34 @@ pad "Mounting \"$disk\" partitions"
 $SUDO mount ${disk}1 $tmp_dir/boot &>/dev/null && $SUDO mount ${disk}2 $tmp_dir/root &>/dev/null
 showResultOrExit
 
-showSubSection "Image processing"
-$SUDO wget $IMAGE_URL -P $tmp_dir/
+showSection "Deploying ArchLinux Arm"
+
+showSubSection "Getting base image"
+pad "Downloading image"
+$SUDO wget $IMAGE_URL -nc -q --show-progress
 showResultOrExit
 
 pad "Extracting image"
-bsdtar -xpf $tmp_dir/ArchLinuxARM-rpi-4-latest.tar.gz -C $tmp_dir/root
+echo -e "\n"
+pv -ptea $FILE_NAME | $SUDO tar xpzf - -C "${tmp_dir}/root"
 showResultOrExit
+
+pad "Synching disks, might take a while $SAD_FACE"
+$SUDO sync
+showResultOrExit
+
+showSubSection "Post processing"
 
 pad "Moving boot files to boot partition"
 $SUDO mv $tmp_dir/root/boot/* $tmp_dir/boot/ &>/dev/null
 showResultOrExit
 
 pad "Fixing mount point"
-$SUDO sed -i 's/mmcblk0/mmcblk1/g' root/etc/fstab
+$SUDO sed -i 's/mmcblk0/mmcblk1/g' $tmp_dir/root/etc/fstab
+showResultOrExit
 
 if [ -n "$host" ]; then
-	pad "Setting hostname \"$host\""
+	pad "Setting hostname to \"$host\""
 	echo "$host" | $SUDO tee $tmp_dir/root/etc/hostname &>/dev/null
 	showResultOrExit
 fi
@@ -387,7 +404,7 @@ fi
 showSubSection "Performing cleanup"
 
 pad "Unmounting disk \"$disk\""
-$SUDO umount $tmp_dir/{boot,root}
+$SUDO umount $tmp_dir/{boot,root} %>/dev/null
 showResultOrExit
 
 pad "Removing temporary directory"

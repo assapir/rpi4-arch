@@ -395,8 +395,12 @@ pad "Fixing mount point"
 $SUDO sed -i 's/mmcblk0/mmcblk1/g' $tmp_dir/root/etc/fstab
 showResultOrExit
 
+pad "Creating ssh folder"
+mkdir -p $tmp_dir/root/home/alarm/.ssh &> /dev/null
+showResultOrExit
+
 pad "Copying ssh public key"
-$SUDO cp $HOME/.ssh/id_rsa.pub $tmp_dir/root/home/alarm/.ssh/id_rsa.pub
+$SUDO cp $HOME/.ssh/id_rsa.pub $tmp_dir/root/home/alarm/.ssh/id_rsa.pub &> /dev/null
 showResultOrExit
 
 if [ -n "$host" ]; then

@@ -395,6 +395,10 @@ pad "Fixing mount point"
 $SUDO sed -i 's/mmcblk0/mmcblk1/g' $tmp_dir/root/etc/fstab
 showResultOrExit
 
+pad "Copying ssh public key"
+$SUDO cp $HOME/.ssh/id_rsa.pub $tmp_dir/root/home/alarm/.ssh/id_rsa.pub
+showResultOrExit
+
 if [ -n "$host" ]; then
 	pad "Setting hostname to \"$host\""
 	echo "$host" | $SUDO tee $tmp_dir/root/etc/hostname &>/dev/null
@@ -404,7 +408,7 @@ fi
 showSubSection "Performing cleanup"
 
 pad "Unmounting disk \"$disk\""
-$SUDO umount $tmp_dir/{boot,root} %>/dev/null
+$SUDO umount $tmp_dir/{boot,root} &>/dev/null
 showResultOrExit
 
 pad "Removing temporary directory"

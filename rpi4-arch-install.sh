@@ -401,7 +401,7 @@ showResultOrExit
 
 pad "Copying ssh public key"
 $SUDO tee -a $tmp_dir/root/home/alarm/.ssh/authorized_keys < $HOME/.ssh/id_rsa.pub &> /dev/null
-$SUDO chown -R alarm:alarm $tmp_dir/root/home/alarm/.ssh &> /dev/null
+$SUDO chown -R 1000:1000 $tmp_dir/root/home/alarm/.ssh
 showResultOrExit
 
 if [ -n "$host" ]; then

@@ -392,7 +392,7 @@ pad "Moving boot files to boot partition"
 $SUDO mv $tmp_dir/root/boot/* $tmp_dir/boot/ &>/dev/null
 showResultOrExit
 
-if [ -n "$type" ] || [[ $type -ne 3 ]]; then
+if [ -n "$type" ] || [[ "$type" -ne 3 ]]; then
 	pad "Fixing mount point"
 	$SUDO sed -i 's/mmcblk0/mmcblk1/g' $tmp_dir/root/etc/fstab
 	showResultOrExit

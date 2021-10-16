@@ -6,9 +6,10 @@
 # --------------------
 #
 # Prepare an HD with ArchLinux ARM
+# Original writer: Pablo Navais
 #
 ####################################################################################
-VERSION="0.3.0"
+VERSION="0.5.0"
 
 
 # Globals
@@ -22,22 +23,7 @@ DEFAULT_PER_W=50
 RES_OK="\xE2\x9C\x94"   		#"\u2714";
 RES_FAIL="\xE2\x9C\x96" 		#"\u2716";
 RES_WARN="\xE2\x9A\xA0" 		#"\u2716";
-SAD_FACE="\xE2\x98\xB9" #"\u2639";
-
-RED="$(tput setaf 1)"
-GREEN="$(tput setaf 2)"
-YELLOW="$(tput setaf 3)"
-BLUE="$(tput setaf 4)"
-WHITE="$(tput setaf 7)"
-BOLD="$(tput bold)"
-NORMAL="$(tput sgr0)"
-
-SAVE_CURSOR="$(tput sc)"
-RESTORE_CURSOR="$(tput rc)"
-CLEAR_TO_END="$(tput ed)"
-MOVE_CURSOR_UP="$(tput cuu1)"
-HIDE_CURSOR="$(tput civis)"
-SHOW_CURSOR="$(tput cnorm)"
+SAD_FACE="\xE2\x98\xB9"     #"\u2639";
 
 # Functions
 ###########
@@ -120,6 +106,15 @@ function fail() {
 #######################################
 function debug() {
 	printf "\e[0;33m$1\e[0m";
+}
+
+#######################################
+# Shows an info message (Cyan color)
+# Params:
+# - (1) msg : String to show
+#######################################
+function info() {
+	printf "\e[0;36m$1\e[0m";
 }
 
 #######################################
@@ -223,8 +218,9 @@ function show_help() {
 	printf "where OPTIONS are :\n";
 	printf "\t-d|--disk <disk>   : use the given disk (e.g. /dev/sdb)\n";
 	printf "\t-h|--host [<host>] : set as hostname in target root file system\n";
-	printf "\t-v                 : show version\n";
+	printf "\t--rpi3             : set the target to Raspberry pi 3\n";
 	printf "\t--help             : show this help\n";
+	printf "\t-v                 : show version\n";
 }
 
 ##############################################
@@ -285,6 +281,11 @@ while (( "$#" )); do
 				exit 1;
 			fi
 			shift 2;
+			;;
+		--rpi3)
+			type=3
+			info "Target set to Raspberry Pi 3\n";
+			shift;
 			;;
 		--) # end argument parsing
 			shift
@@ -391,9 +392,11 @@ pad "Moving boot files to boot partition"
 $SUDO mv $tmp_dir/root/boot/* $tmp_dir/boot/ &>/dev/null
 showResultOrExit
 
-pad "Fixing mount point"
-$SUDO sed -i 's/mmcblk0/mmcblk1/g' $tmp_dir/root/etc/fstab
-showResultOrExit
+if [ -n "$type" ] || [[ $type -ne 3 ]]; then
+	pad "Fixing mount point"
+	$SUDO sed -i 's/mmcblk0/mmcblk1/g' $tmp_dir/root/etc/fstab
+	showResultOrExit
+fi
 
 pad "Creating ssh folder"
 mkdir -p $tmp_dir/root/home/alarm/.ssh &> /dev/null
